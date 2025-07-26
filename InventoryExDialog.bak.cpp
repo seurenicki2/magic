@@ -87,15 +87,11 @@
 #include "ChangeClassDlg.h"
 #include "DissolveDialog.h"
 
-#ifndef _FORMOON_
 // 05 Feb 2014 , Death Add Marry Manager 
 #include "MarryManager.h"
 //aziz add
 #include "AliasManager.h"
 #include "MHTimeManager.h"
-//inspect
-#include "OtherCharacterEquip.h"
-#endif
 CInventoryExDialog::CInventoryExDialog()
 {
 	m_type				= WT_INVENTORYDIALOG;
@@ -115,9 +111,9 @@ CInventoryExDialog::CInventoryExDialog()
 	// 이때 GetCurSelectedItem()에서 제대로 된 포인터를 넘기지 못하기 때문에 
 	// 이 때만 사용 할 임시 아이템 포인터를 선언 및 사용한다.
 	m_pQuickSelectedItem = NULL ;
-	
-		// ---- skr sorting
-	bIsdirty = FALSE;
+	NextSortTime = 0;
+	m_bWaitProcess = FALSE;
+	m_Count = 0;
 }
 
 CInventoryExDialog::~CInventoryExDialog()
@@ -219,7 +215,7 @@ DWORD CInventoryExDialog::ActionEvent(CMouse * mouseInfo)
 
 WORD CInventoryExDialog::GetTabIndex( POSTYPE absPos )
 {
-	return ( absPos - TP_INVENTORY_START ) / TABCELL_INVENTORY_NUM;
+	return (absPos - TP_INVENTORY_START) / TP_INVENTORY_END;// TABCELL_INVENTORY_NUM;
 }
 
 void CInventoryExDialog::RefreshInvenItem()
@@ -248,9 +244,6 @@ void CInventoryExDialog::RefreshInvenItem()
 		if(pItem)
 			ITEMMGR->RefreshItem( pItem );
 	}
-	
-	// ----skr sorting
-	//bIsdirty = FALSE;
 }
 
 BOOL CInventoryExDialog::AddItem(ITEMBASE * itemBase)
@@ -270,9 +263,7 @@ BOOL CInventoryExDialog::AddItem(ITEMBASE * itemBase)
 	{
 		newItem->SetItemBaseInfo( *itemBase ) ;
 	}
-	const ITEM_OPTION& itemOpt = ITEMMGR->GetOption(newItem->GetDBIdx()); //alemuri
-	newItem->slotEnchant = itemOpt.mEnchant.mLevel;
-
+	
 	return AddItem( newItem );
 }
 
@@ -321,10 +312,6 @@ BOOL CInventoryExDialog::AddItem(CItem* pItem)
 			GAMEIN->GetQuestQuickViewDialog()->ResetQuickViewDialog();
 			GAMEIN->GetQuestDialog()->RefreshQuestList();
 			QUESTMGR->ProcessNpcMark();
-			
-			// ----skr sorting
-			if( bRes ) { bIsdirty = TRUE;}
-	
 			return bRes;
 		}
 	}
@@ -334,10 +321,6 @@ BOOL CInventoryExDialog::AddItem(CItem* pItem)
 		//return m_pWearedDlg->AddItem(pos-TP_WEAR_START, pItem);
 		bRes = m_pWearedDlg->AddItem(pos-TP_WEAR_START, pItem);
 		ITEMMGR->UpdateDlgCoolTime(pItem->GetItemIdx());	// 080326 NYJ --- 쿨타임갱신
-		
-		// ----skr sorting
-			if( bRes ) { bIsdirty = TRUE;}
-		
 		return bRes;
 	}
 
@@ -368,10 +351,6 @@ BOOL CInventoryExDialog::DeleteItem(POSTYPE Pos,CItem** ppItem)
 	GAMEIN->GetQuestQuickViewDialog()->ResetQuickViewDialog();
 	GAMEIN->GetQuestDialog()->RefreshQuestList();
 	QUESTMGR->ProcessNpcMark();
-	
-	// ----skr sorting
-	bIsdirty = TRUE;
-	
     return bRet;
 }
 
@@ -422,18 +401,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 
 	CHero* hero = OBJECTMGR->GetHero();
 	ASSERT( hero );
-
-	//cant open box at alker n nera //alemuri
-	int currentMap = hero->GetCharacterTotalInfo()->CurMapNum;
-	if ((pItem->GetItemIdx() == 21000271) || (pItem->GetItemIdx() == 21001412) || (pItem->GetItemIdx() == 50011876) || (pItem->GetItemIdx() == 50011878))
-	{
-		if (currentMap == 20 || currentMap == 52)
-		{
-			CHATMGR->AddMsg(CTC_SYSMSG, CHATMGR->GetChatMsg(2514));
-			return;
-		}
-	}
-
+	
 	if( WINDOWMGR->IsDragWindow() && WINDOWMGR->GetDragDlg() )
 	if( WINDOWMGR->GetDragDlg()->GetType() == WT_ITEM)
 		return;
@@ -523,7 +491,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
    			return;
    		}
    	}
-#ifndef _FORMOON_
+
 	if( MAP->GetMapNum() == StreetTournament )
 	{
 		if( SIEGEWARFAREMGR->IsFobiddenItemTournament(pItem->GetItemIdx()) )
@@ -532,7 +500,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 			return;
 		}
 	}
-#endif
+
 	if( HOUSINGMGR->IsHousingMap() ) 
 	{
 		//090527 pdy 하우징 시스템메세지 하우징 맵일때 제한행동 [아이템사용]
@@ -1056,7 +1024,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
@@ -1065,9 +1033,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 
 					// 080124 KTH -- 피케이 모드일때에는 사용할 수 없습니다.
 					if( HERO->IsPKMode() && MAP->GetMapNum() != PVP)
-#else
-					if( HERO->IsPKMode() )
-#endif
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(1263) ) ;
 						return;
@@ -1109,14 +1074,13 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
 					}
-#ifndef _FORMOON_
+
 					// 080124 KTH -- 피케이 모드일때에는 사용할 수 없습니다.
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
 					if( HERO->IsPKMode() )
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(1263) ) ;
@@ -1129,7 +1093,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					return ;
 				}
 				return ;
-#ifndef _FORMOON_
 			//aziz Reborn in Game 29 Sep
 			case ITEM_KIND_REBORN :
 				{
@@ -1156,7 +1119,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					return ;
 				}
 				return ;
-#endif
+
 			// 071203 LYW --- InventoryExDialog : 스킬 초기화 아이템 추가.
 			case ITEM_KIND_RESET_SKILL :
 				{
@@ -1165,7 +1128,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
@@ -1174,9 +1137,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					
 					// 080124 KTH -- 피케이 모드일때에는 사용할 수 없습니다.
 					if( HERO->IsPKMode() && MAP->GetMapNum() != PVP )
-#else
-					if( HERO->IsPKMode() )
-#endif
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(1263) ) ;
 						return;
@@ -1248,7 +1208,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
@@ -1257,9 +1217,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					
 					// 080124 KTH -- 피케이 모드일때에는 사용할 수 없습니다.
 					if( HERO->IsPKMode() && MAP->GetMapNum() != PVP )
-#else
-					if( HERO->IsPKMode() )
-#endif
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(1263) ) ;
 						return;
@@ -1275,22 +1232,18 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 			// 071201 LYW --- InventoryExDialog : 맵 이동 주문서 처리 추가.
 			case ITEM_KIND_MAP_MOVE_SCROLL :
 				{
-#ifndef _FORMOON_
 				if( HERO->GetState() != eObjectState_None || (HERO->IsPKMode() && MAP->GetMapNum() != PVP))//Beyond SEA2 warning
-#else
-				if( HERO->GetState() != eObjectState_None || HERO->IsPKMode() )
-#endif
-				{
+					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
+
 					ITEMMGR->UseItem_MapMoveScroll(pItem) ;
 				}
 				return ;
@@ -1323,6 +1276,9 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						return ;
 					}
 
+					WINDOWMGR->MsgBox(MBI_NOTICE, MBT_OK, CHATMGR->GetChatMsg(1248));
+					return;
+					/*
 					if( nInvenCount >= 2)
 					{
 						WINDOWMGR->MsgBox( MBI_NOTICE, MBT_OK, CHATMGR->GetChatMsg(1248) ) ;
@@ -1336,6 +1292,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						WINDOWMGR->MsgBox( MBI_EXTENDINVEN_AREYOUSURE, MBT_YESNO, CHATMGR->GetChatMsg(1247) ) ;
 						return ;
 					}
+					*/
 				}
 				return ;
 
@@ -1347,13 +1304,13 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						WINDOWMGR->MsgBox( MBI_NOTICE, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
+
 					if( HERO->GetPartyIdx() != 0 )
 					{
 						WINDOWMGR->MsgBox( MBI_NOTICE, MBT_OK, CHATMGR->GetChatMsg(1258) ) ;
@@ -1549,7 +1506,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					{
 						return;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
@@ -1557,9 +1514,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					}
 
 					if( HERO->GetState() != eObjectState_None || (HERO->IsPKMode() && MAP->GetMapNum() != PVP) )
-#else
-					if( HERO->GetState() != eObjectState_None || HERO->IsPKMode() )
-#endif
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
@@ -1602,7 +1556,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					{
 						return;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
@@ -1610,9 +1564,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					}
 
 					if( HERO->GetState() != eObjectState_None || (HERO->IsPKMode() && MAP->GetMapNum() != PVP) )
-#else
-					if( HERO->GetState() != eObjectState_None || HERO->IsPKMode() )
-#endif
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, CHATMGR->GetChatMsg(789) ) ;
 						return ;
@@ -1700,13 +1651,13 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						CHATMGR->AddMsg( CTC_SYSMSG,  CHATMGR->GetChatMsg(1977) );
 						return;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
+
 					MSG_DWORD4 msg;
 					msg.Category = MP_DUNGEON;
 					msg.Protocol = MP_DUNGEON_ENTRANCE_SYN;
@@ -1731,13 +1682,13 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						StartVehicleSeal( HERO->GetVehicleID() );
 						return;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament || MAP->GetMapNum() == PVP_MAP)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
+
 					// 090423 ShinJS --- 소환 가능상태 확인
 					if( !HERO->CanSummonVehicle() )
 						return;
@@ -1850,7 +1801,7 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					Set_QuickSelectedItem(pItem) ;
 				}
 				break;
-#ifndef _FORMOON_
+
 			case ITEM_KIND_MARRY_REQUEST:
 				{
 					DWORD dwObjectID = 0 ;
@@ -1941,7 +1892,6 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 					ALIASMGR->ItemKindAliasSyn(pInfo->SupplyValue);
 				}
 				break;
-#endif
 			}
 
 			// E 농장시스템 추가 added by hseos 2007.05.14	2007.08.21
@@ -1961,13 +1911,13 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						CHATMGR->AddMsg( CTC_SYSMSG, CHATMGR->GetChatMsg(1598) );
 						return;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament || MAP->GetMapNum() == PVP_MAP)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
+
 					if( PETMGR->GetLastSummonTime() != 0 && gCurTime - PETMGR->GetLastSummonTime() < PETMGR->GetSummonPenaltyDelay() )
 					{
 						CHATMGR->AddMsg( CTC_SYSMSG, CHATMGR->GetChatMsg(1597) );
@@ -2035,13 +1985,12 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 						CHATMGR->AddMsg( CTC_SYSMSG, CHATMGR->GetChatMsg( 91 ) );
 						return;
 					}
-#ifndef _FORMOON_
+
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
 					// 공성맵에서도 키변환 관련 아이템 사용을 금한다
 					else if( SIEGEWARFAREMGR->IsSiegeWarfareKindMap(MAP->GetMapNum()) && 
 							 SIEGEWARFAREMGR->Is_CastleMap() == FALSE )
@@ -2079,13 +2028,12 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 				}
 				else if( pItem->GetItemInfo()->SupplyType == ITEM_KIND_SUMMON_MONSTER )
 				{
-#ifndef _FORMOON_
 					if(MAP->GetMapNum() == StreetTournament)
 					{
 						WINDOWMGR->MsgBox( MBI_CANTUSE_MAPMOVESCROLL, MBT_OK, "Item disable at this map" ) ;
 						return;
 					}
-#endif
+
 					SetDisable( TRUE );
 
 					SetCoolTime( pItem->GetItemIdx(), WAITMILISECOND );
@@ -2158,39 +2106,37 @@ void CInventoryExDialog::UseItem(CItem* pItem)
 		}
 		break;
 	}
-	
-	// ----skr sorting
-	bIsdirty = TRUE;
 }
 
 void CInventoryExDialog::SetActive(BOOL val)
 {
 	// 080221 LYW --- MacroManager : 인벤토리 확장에 따른 처리.
-	int nExtendedInven = 0 ;
+/*	int nExtendedInven = 0 ;
 	nExtendedInven = HERO->Get_HeroExtendedInvenCount() ;
 
-	ShowTab(2, FALSE);
-	ShowTab(3, FALSE);
+	ShowTab(2,FALSE) ;
+	ShowTab(3,FALSE) ;
 
-	switch (nExtendedInven)
+	// 100305 확장된 인벤토리 탭의 Disible 처리가 안되는 문제 수정
+	switch(nExtendedInven)
 	{
-	case 1:
-	{
-		ShowTab(2, TRUE);
-		SetVisibleTabCount(3);
-	}
-	break;
-	case 2:
-	{
-		ShowTab(2, TRUE);
-		ShowTab(3, TRUE);
-		SetVisibleTabCount(4);
-	}
-	break;
+	case 1 : 
+		{
+			ShowTab(2,TRUE); 
+			SetVisibleTabCount(3);
+		}
+		break ;
+	case 2 :
+		{
+			ShowTab(2,TRUE) ;
+			ShowTab(3,TRUE) ;
+			SetVisibleTabCount(4);
+		}
+		break ;
 
-	default: break;
+	default : break ;
 	}
-
+*/
 	if( !m_bDisable )
 	{
 		if(val == FALSE)
@@ -2234,11 +2180,49 @@ void CInventoryExDialog::SetActive(BOOL val)
 		RevisionDialogPos();
 }
 
+void CInventoryExDialog::SortWait()
+{
+	if (!m_bWaitProcess) return;
+
+	if (gCurTime - NextSortTime >= 1000)	
+	{
+		NextSortTime += 1000;
+
+		if (m_Count <= 0)
+		{
+			m_bWaitProcess = FALSE;
+		}
+		--m_Count;		
+	}
+}
+
 void CInventoryExDialog::OnActionEvnet(LONG lId, void * p, DWORD we)
 {
 	if( !p ) return ;
 	CDealDialog* pDealDlg = GAMEIN->GetDealDialog() ;//beyond
 	CDissolveDialog* pDissolveDlg = GAMEIN->GetDissolveDialog();
+	//sort test
+	if (lId == IN_SORTBTN)
+	{
+		if (m_Count > 0)
+		{
+			CHATMGR->AddMsg(CTC_CHEAT_1, SENC("You can use Sort after %d Seconds"), m_Count);
+			return;
+		}
+		ClearInventoryForSort();
+		MSG_DWORD msg;
+		ZeroMemory(&msg, sizeof(msg));
+		msg.Category = MP_USERCONN;
+		msg.Protocol = MP_USERCONN_SORT_SYN;
+		msg.dwObjectID = gHeroID;
+		msg.dwData = 2;
+		NETWORK->Send(&msg, sizeof(MSG_DWORD));
+
+		m_bWaitProcess = TRUE;
+		DWORD dwCurTime = MHTIMEMGR->GetNewCalcCurTime();
+		NextSortTime = dwCurTime - 1000;
+		m_Count = 32; // 30 seconds
+	}
 	if(we == WE_LBTNDBLCLICK || we == WE_RBTNCLICK) //right click test || we == WE_RBTNCLICK
 	{	
 		CItem * pItem = NULL ;
@@ -2276,7 +2260,7 @@ void CInventoryExDialog::OnActionEvnet(LONG lId, void * p, DWORD we)
 			SetDisable( TRUE ) ;
 
 			return ;
-		}//beyond //right click func here!!!//johan cek
+		}//beyond //right click func here!!!
 		else if( pDealDlg			&& 
 			pDealDlg->IsActive() )
 		{
@@ -2393,10 +2377,6 @@ int CInventoryExDialog::GetBlankNum()
 BOOL CInventoryExDialog::FakeMoveIcon(LONG x, LONG y, cIcon * icon)
 {
 	ASSERT(icon);
-
-	if (GAMEIN->GetCharacterEquipInfoDlg()->IsActive())
-		return FALSE;
-
 	if( m_bDisable )	return FALSE;
 
 	if( PKMGR->IsPKLooted() )	return FALSE;	//죽었을때 다막을까.. //KES 040801
@@ -2455,16 +2435,10 @@ void CInventoryExDialog::MoveItem(POSTYPE FromPos, POSTYPE ToPos )
 		if(!AddItem(ToItem))
 			assert(0);
 	}
-	
-	// ----skr sorting
-	bIsdirty = TRUE;
 }
 
 BOOL CInventoryExDialog::FakeMoveItem( LONG mouseX, LONG mouseY, CItem * pFromItem )
 {
-	if (GAMEIN->GetCharacterEquipInfoDlg()->IsActive())
-		return FALSE;
-
 	WORD ToPos=0;
 	
 	if( !GetPositionForXYRef( 0, mouseX, mouseY, ToPos ) )	// 절대위치 넘어 옴
@@ -2624,7 +2598,6 @@ BOOL CInventoryExDialog::FakeGeneralItemMove( POSTYPE ToPos, CItem * pFromItem, 
 	msg.wFromItemIdx		= pFromItem->GetItemIdx();
 	msg.ToPos				= ToPos;
 	msg.wToItemIdx			= (pToItem?pToItem->GetItemIdx():0);
-#ifndef _FORMOON_
 	//hack check
 	msg.PartTypeA = pFromItem->GetItemInfo()->Part3DType;
 	msg.PartTypeB = (pToItem?pToItem->GetItemInfo()->Part3DType:0);
@@ -2634,7 +2607,7 @@ BOOL CInventoryExDialog::FakeGeneralItemMove( POSTYPE ToPos, CItem * pFromItem, 
 
 	msg.EquipSlotA = pFromItem->GetItemInfo()->EquipSlot;
 	msg.EquipSlotB = (pToItem ? pToItem->GetItemInfo()->EquipSlot : eWearedItem_None);
-#endif
+
  	if( msg.FromPos == msg.ToPos )
 		return FALSE;
 
@@ -2692,21 +2665,15 @@ BOOL CInventoryExDialog::FakeItemDivide( POSTYPE ToPos, CItem * pFromItem, CItem
 	return FALSE;
 		
 }
-#ifdef _FORMOON_
-void CInventoryExDialog::OnFakeItemDivideCancel( LONG iId, void* p, DWORD param1, void * vData1, void * vData2 )
-#else
+
 void CInventoryExDialog::OnFakeItemDivideCancel( LONG iId, void* p, DWORDEX param1, void * vData1, void * vData2 )
-#endif
 {
 	ITEMMGR->SetDisableDialog(FALSE, eItemTable_Inventory);
 	ITEMMGR->SetDisableDialog(FALSE, eItemTable_Storage);
 	ITEMMGR->SetDisableDialog(FALSE, eItemTable_MunpaWarehouse);
 }
-#ifdef _FORMOON_
-void CInventoryExDialog::OnFakeItemDivideOk( LONG iId, void* p, DWORD param1, void * vData1, void * vData2 )
-#else
+
 void CInventoryExDialog::OnFakeItemDivideOk( LONG iId, void* p, DWORDEX param1, void * vData1, void * vData2 )
-#endif
 {
 	CInventoryExDialog * tDlg = ( CInventoryExDialog * )vData1;
 	if( param1 == 0 )
@@ -3466,24 +3433,24 @@ void CInventoryExDialog::Restore()
 // 071210 LYW --- CInventoryExDialog : 확장 인벤토리의 활성화 여부를 세팅하는 함수 추가.
 void CInventoryExDialog::InitExtended_Inventory( CHARACTER_TOTALINFO* pInfo )
 {
-	//return; //johan lock slot inventory just 2
+	return;
 
-	if (!pInfo) return;
+	if( !pInfo ) return ;
 
-	if (pInfo->wInventoryExpansion == 0) return;
+	if( pInfo->wInventoryExpansion == 0 ) return ;
 
-	if (pInfo->wInventoryExpansion == 1)
+	if( pInfo->wInventoryExpansion == 1 )
 	{
-		ShowTab(2, TRUE);
+		ShowTab(2,TRUE) ;
 
-		HERO->Set_HeroExtendedInvenCount(1);
+		HERO->Set_HeroExtendedInvenCount(1) ;
 	}
-	else if (pInfo->wInventoryExpansion == 2)
+	else if( pInfo->wInventoryExpansion == 2 )
 	{
-		ShowTab(2, TRUE);
-		ShowTab(3, TRUE);
+		ShowTab(2,TRUE) ;
+		ShowTab(3,TRUE) ;
 
-		HERO->Set_HeroExtendedInvenCount(2);
+		HERO->Set_HeroExtendedInvenCount(2) ;
 	}
 }
 // 080213 KTH -- ClearInventory
@@ -3493,9 +3460,17 @@ BOOL CInventoryExDialog::ClearInventory()
 	{
 			ITEMMGR->DeleteItemofTable( eItemTable_Inventory, i, false );
 	}
-		// ----skr sorting
-	bIsdirty = FALSE;
-	
+
+	return TRUE;
+}
+//sort test
+BOOL CInventoryExDialog::ClearInventoryForSort()
+{
+	for (int i = TP_INVENTORY_START; i < (TP_INVENTORY_END + (TABCELL_INVENTORY_NUM * HERO->Get_HeroExtendedInvenCount())); i++)
+	{
+		ITEMMGR->DeleteItemofTable(eItemTable_Inventory, i, TRUE);
+	}
+
 	return TRUE;
 }
 
@@ -3585,183 +3560,3 @@ void CInventoryExDialog::RefreshArmorItem()
 		 m_pWearedDlg->RefreshArmorItem();
 	 }
 }
-
-// ---- ske : sorting
-struct ST_item_move_me {
-		CItem * ppitem;
-		DWORD dwmitemidx;
-		POSTYPE wmpos;
-		POSTYPE wmSP;
-	};
-
-ST_item_move_me * finditembyID( ST_item_move_me * arr, DWORD arrlen, DWORD idx){
-	ST_item_move_me * ret = NULL;
-	for( DWORD i = 0; i < arrlen; i++)
-	{
-		if( (arr + i)->dwmitemidx == idx)
-		{
-			ret = arr + i;
-			break;
-		}
-	}
-	return ret;
-}
-ST_item_move_me * finditembyPOS( ST_item_move_me * arr, DWORD arrlen, POSTYPE pos){
-	ST_item_move_me * ret = NULL;
-	for( DWORD i = 0; i < arrlen; i++)
-	{
-		if( (arr + i)->wmpos == pos)
-		{
-			ret = arr + i;
-			break;
-		}
-	}
-	return ret;
-}
-
-ST_item_move_me * finditembySPID( ST_item_move_me * arr, DWORD arrlen, POSTYPE sp, int * ret_index){
-	ST_item_move_me * ret = NULL;
-	*ret_index = -1;
-	for( DWORD i = 0; i < arrlen; i++)
-	{
-		if( (arr + i)->wmSP == sp)
-		{
-			ret = arr + i;
-			*ret_index = i;
-			break;
-		}
-	}
-	return ret;
-}
-
-void mysortsend( ST_item_move_me * fromidx, ST_item_move_me * toidx, int xx, int yy  )
-{
-	MSG_ITEM_MOVE_SYN msg;
-	msg.Category			= MP_ITEM;
-	msg.Protocol			= MP_ITEM_MOVE_SYN;
-	msg.dwObjectID			= HEROID;
-	msg.FromPos				= ( (xx == -1) ? 0 : (POSTYPE)xx);
-	msg.wFromItemIdx		= fromidx->dwmitemidx;
-	msg.ToPos				= ( (yy == -1) ? 0 : (POSTYPE)yy);
-	msg.wToItemIdx			= toidx->dwmitemidx;
- 	if( msg.FromPos == msg.ToPos ) return;
-
-	NETWORK->Send( &msg, sizeof(msg) );
-}
-
-void CInventoryExDialog::OnActionEvent_custom(LONG lId, LPVOID p, DWORD we)
-{
-	if( !bIsdirty ) { return; }
-
-	BOOL bIsSorted = FALSE;
-	BOOL bNeedMove = FALSE;
-	BOOL bZeroFound = FALSE;
-	BOOL bEmptySlotFound = FALSE;
-	int dwpos = 0;
-	POSTYPE dwposAA = 0;
-	int i, j, k, m;
-	
-	ST_item_move_me arr_itemAA[ SLOT_MAX_INVENTORY_NUM ] = {};
-	ST_item_move_me arr_itemBB[ SLOT_MAX_INVENTORY_NUM ] = {};
-	//ST_item_move_me arr_itemCC[ SLOT_MAX_INVENTORY_NUM ] = {};
-
-	int TabNum = GetTabNum();
-	POSTYPE wbSP = 400;
-	for( i = 0 ; i < TabNum ; ++i )
-	{
-		cIconGridDialog* gridDlg = (cIconGridDialog*)GetTabSheet(i);
-		for( j = 0 ; j < gridDlg->GetCellNum() ; ++j )
-		{
-			CItem * pItem = (CItem *)gridDlg->GetIconForIdx(TP_INVENTORY_START+j);
-			if(pItem){
-				arr_itemAA[ dwpos ].ppitem = pItem;
-				arr_itemAA[ dwpos ].dwmitemidx = pItem->GetItemIdx();
-				arr_itemAA[ dwpos ].wmpos = pItem->GetPosition();
-				arr_itemAA[ dwpos ].wmSP = wbSP;				
-				arr_itemBB[ dwposAA ] = arr_itemAA[ dwpos ];
-				if( bZeroFound ) 
-				{
-					bEmptySlotFound = TRUE;
-				}
-				dwpos += 1;
-			} 
-			else 
-			{
-				arr_itemBB[ dwposAA ].wmpos = dwposAA;
-				arr_itemBB[ dwposAA ].wmSP = wbSP;
-				bZeroFound = TRUE;
-			}
-			wbSP++;
-			dwposAA++;
-		}
-	}
-	
-	if( dwpos < 2 )// ---- skr : no need sorting if only item in inventory
-	{ 
-		if( dwpos ==  1 && ( arr_itemAA[0].wmpos != 0 ) )
-		{
-			FakeGeneralItemMove( 0 , arr_itemAA[0].ppitem , NULL  );
-		}
-		return;
-	}
-
-	// ---- skr sorting arr_itemAA
-	ST_item_move_me st_itemn;
-	DWORD dwtitemidA, dwtitemidB;
-	while( bIsSorted == FALSE )
-	{
-		bIsSorted = TRUE;
-		for( k = 0 ; k < ( dwpos - 1 ) ; k++ )
-		{
-			dwtitemidA = arr_itemAA[ k ].dwmitemidx;
-			dwtitemidB = arr_itemAA[ k + 1 ].dwmitemidx;
-			if( dwtitemidA > dwtitemidB )
-			{
-				bIsSorted = FALSE;
-				bNeedMove = TRUE;
-				st_itemn = arr_itemAA[ k ];
-				arr_itemAA[ k ] = arr_itemAA[ k + 1 ]; 
-				arr_itemAA[ k + 1 ] = st_itemn;
-			}
-		}
-	}
-	
-	if( !bNeedMove && !bEmptySlotFound ){ return; } // ---- skr : already sorted.
-	
-	// ---- filling the empties
-	if( dwposAA < SLOT_MAX_INVENTORY_NUM ){
-		DWORD dwgap = SLOT_MAX_INVENTORY_NUM - dwposAA;
-		for(DWORD aa = 0; aa < dwgap; aa++){
-			arr_itemBB[ dwposAA ].wmSP = wbSP;
-			wbSP++;
-			dwposAA++;
-		}
-	}
-
-//	CItem * pFromItem;
-	//CItem * pToItem;
-	int reidx, reidv;
-//	POSTYPE ToPos, Tpos;
-	ST_item_move_me * st_itemX, * st_itemY , * st_itemZ ,*st_itemV, st_itemT ;
-	for( m = 0; m < dwpos ; m++ ){
-		if( arr_itemAA[m].wmpos != arr_itemBB[m].wmpos ){
-			st_itemX = &(arr_itemAA[m]);
-			st_itemY = finditembySPID( arr_itemBB, SLOT_MAX_INVENTORY_NUM,st_itemX->wmSP, &reidx );
-			st_itemZ = &(arr_itemBB[m]);
-			st_itemV = finditembySPID( arr_itemBB, SLOT_MAX_INVENTORY_NUM,st_itemZ->wmSP, &reidv );
-
-			mysortsend( st_itemY,st_itemZ,reidx,reidv  );
-	
-			st_itemT = *st_itemY;
-			*st_itemY = *st_itemZ;
-			*st_itemZ = st_itemT;
-		}
-	}
-	
-	bIsdirty = FALSE;
-}
-
-
-
-
-

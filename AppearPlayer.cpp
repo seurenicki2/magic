@@ -455,8 +455,6 @@ BYTE CAppearPlayer::ChangePart()
 		m_pTotalInfo->HideFlag,
 		HideParts);
 
-	m_stShowFlag.IsShowWeapon2		= FALSE ;
-	m_stShowFlag.IsShowShield2		= FALSE ;
 	// ChangePart를 사용하는 부분	
 	for(int n=0 ;n < eWearedItem_Max ; ++n)
 	{
@@ -573,18 +571,7 @@ BYTE CAppearPlayer::ChangePart()
 				}
 				break;
 //================================== ESCRAF
-			//Hide Skins--------------------------------------------------------------------------------------------------------------------------------------
-			case ePartType_Weapon2:
-				{
-					m_stShowFlag.IsShowWeapon2		= TRUE ;
-				}
-				break;
-			case ePartType_Shield2:
-				{
-					m_stShowFlag.IsShowShield2		= TRUE ;
-				}
-				break;
-			//--------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 			default : break ;
 
@@ -943,92 +930,35 @@ BYTE CAppearPlayer::AppearWeapone()
 		{
 		case ePartType_TwoBlade:
 			{
-				if(const ITEM_INFO* const itemInfoWep2Check = ITEMMGR->GetItemInfo(m_pPlayer->GetWearedItemIdx(eWearedItem_Weapon2)))
+				if(eWeaponType_BothDagger == itemInfo->WeaponType)
 				{
-					//Do Nothing
-					
-					//In case hide option is on do anyway the Else code----------------------------------------------------------------------------------------
-					if (m_stShowFlag.IsShowWeapon2 == FALSE)
-					{
-						if(eWeaponType_BothDagger == itemInfo->WeaponType)
-						{
-							CEngineObject* pRightWeapon = new CEngineObject ;
-							pRightWeapon->Init(
-								pModList.ModFile[itemInfo->Part3DModelNum],
-								NULL,
-								eEngineObjectType_Weapon);
-							m_pEngineObject->AttachWeapon(
-								pRightWeapon,
-								RIGHT_HAND);
+					CEngineObject* pRightWeapon = new CEngineObject ;
+					pRightWeapon->Init(
+						pModList.ModFile[itemInfo->Part3DModelNum],
+						NULL,
+						eEngineObjectType_Weapon);
+					m_pEngineObject->AttachWeapon(
+						pRightWeapon,
+						RIGHT_HAND);
 
-							// 마족의 왼손무기를 modlist파일에서 추출하여 attach시킨다.
-							if(const char* pLModFile = GAMERESRCMNGR->GetDualWeaponLObject(itemInfo->Part3DModelNum, m_pTotalInfo->Race, m_pTotalInfo->Gender))
-							{
-								CEngineObject* pLeftWeapon = new CEngineObject ;
-								pLeftWeapon->Init(
-									LPTSTR(pLModFile),
-									NULL,
-									eEngineObjectType_Weapon) ;
-								m_pEngineObject->AttachWeapon(
-									pLeftWeapon,
-									LEFT_HAND) ;
-							}
-						}
-					}
-					//--------------------------------------------------------------------------------------------------------------------------------------------
-				}
-				else
-				{
-					if(eWeaponType_BothDagger == itemInfo->WeaponType)
+					// 마족의 왼손무기를 modlist파일에서 추출하여 attach시킨다.
+					if(const char* pLModFile = GAMERESRCMNGR->GetDualWeaponLObject(itemInfo->Part3DModelNum, m_pTotalInfo->Race, m_pTotalInfo->Gender))
 					{
-						CEngineObject* pRightWeapon = new CEngineObject ;
-						pRightWeapon->Init(
-							pModList.ModFile[itemInfo->Part3DModelNum],
+						CEngineObject* pLeftWeapon = new CEngineObject ;
+						pLeftWeapon->Init(
+							LPTSTR(pLModFile),
 							NULL,
-							eEngineObjectType_Weapon);
+							eEngineObjectType_Weapon) ;
 						m_pEngineObject->AttachWeapon(
-							pRightWeapon,
-							RIGHT_HAND);
-
-						// 마족의 왼손무기를 modlist파일에서 추출하여 attach시킨다.
-						if(const char* pLModFile = GAMERESRCMNGR->GetDualWeaponLObject(itemInfo->Part3DModelNum, m_pTotalInfo->Race, m_pTotalInfo->Gender))
-						{
-							CEngineObject* pLeftWeapon = new CEngineObject ;
-							pLeftWeapon->Init(
-								LPTSTR(pLModFile),
-								NULL,
-								eEngineObjectType_Weapon) ;
-							m_pEngineObject->AttachWeapon(
-								pLeftWeapon,
-								LEFT_HAND) ;
-						}
+							pLeftWeapon,
+							LEFT_HAND) ;
 					}
 				}
+
 				break;
 			}
 		default:
 			{
-				if(const ITEM_INFO* const itemInfoWep2Check = ITEMMGR->GetItemInfo(m_pPlayer->GetWearedItemIdx(eWearedItem_Weapon2)))
-				{
-					//Do Nothing
-
-					//In case hide option is on do anyway the Else code----------------------------------------------------------------------------------------
-					if (m_stShowFlag.IsShowWeapon2 == FALSE)
-					{
-						CEngineObject* pWeapon = new CEngineObject ;
-						pWeapon->Init(
-							pModList.ModFile[itemInfo->Part3DModelNum],
-							NULL,
-							eEngineObjectType_Weapon);
-
-						m_pEngineObject->AttachWeapon(
-							pWeapon,
-							eWeaponType_Bow == itemInfo->WeaponType ? LEFT_HAND : RIGHT_HAND);
-					}
-					//-----------------------------------------------------------------------------------------------------------------------------------------
-				}
-				else
-				{
 				CEngineObject* pWeapon = new CEngineObject ;
 				pWeapon->Init(
 					pModList.ModFile[itemInfo->Part3DModelNum],
@@ -1038,89 +968,14 @@ BYTE CAppearPlayer::AppearWeapone()
 				m_pEngineObject->AttachWeapon(
 					pWeapon,
 					eWeaponType_Bow == itemInfo->WeaponType ? LEFT_HAND : RIGHT_HAND);
-				}
+
 				break;
 			}
 		}
 	}
 
-	//Add Part Weapon2------------------------------------------------------------------------------------------------------------------------------------
-	if(const ITEM_INFO* const itemInfo = ITEMMGR->GetItemInfo(m_pPlayer->GetWearedItemIdx(eWearedItem_Weapon2)))
-	{
-		if (m_stShowFlag.IsShowWeapon2 == TRUE)
-		{
-			switch(itemInfo->Part3DType)
-			{
-			case ePartType_TwoBlade:
-				{
-					if(eWeaponType_BothDagger == itemInfo->WeaponType)
-					{
-						CEngineObject* pRightWeapon = new CEngineObject ;
-						pRightWeapon->Init(
-							pModList.ModFile[itemInfo->Part3DModelNum],
-							NULL,
-							eEngineObjectType_Weapon);
-						m_pEngineObject->AttachWeapon(
-							pRightWeapon,
-							RIGHT_HAND);
-
-						// 마족의 왼손무기를 modlist파일에서 추출하여 attach시킨다.
-						if(const char* pLModFile = GAMERESRCMNGR->GetDualWeaponLObject(itemInfo->Part3DModelNum, m_pTotalInfo->Race, m_pTotalInfo->Gender))
-						{
-							CEngineObject* pLeftWeapon = new CEngineObject ;
-							pLeftWeapon->Init(
-								LPTSTR(pLModFile),
-								NULL,
-								eEngineObjectType_Weapon) ;
-							m_pEngineObject->AttachWeapon(
-								pLeftWeapon,
-								LEFT_HAND) ;
-						}
-					}
-
-					break;
-				}
-			default:
-				{
-					CEngineObject* pWeapon = new CEngineObject ;
-					pWeapon->Init(
-						pModList.ModFile[itemInfo->Part3DModelNum],
-						NULL,
-						eEngineObjectType_Weapon);
-
-					m_pEngineObject->AttachWeapon(
-						pWeapon,
-						eWeaponType_Bow == itemInfo->WeaponType ? LEFT_HAND : RIGHT_HAND);
-
-					break;
-				}
-			}
-		}
-	}
-	//--------------------------------------------------------------------------------------------------------------------------------------------------------
-
 	if(const ITEM_INFO* const itemInfo = ITEMMGR->GetItemInfo(m_pPlayer->GetWearedItemIdx(eWearedItem_Shield)))
 	{
-		if(const ITEM_INFO* const itemInfoWep2Check = ITEMMGR->GetItemInfo(m_pPlayer->GetWearedItemIdx(eWearedItem_Shield2)))
-		{
-			//Do Nothing
-			//In case hide option is on do anyway the Else code----------------------------------------------------------------------------------------
-			if (m_stShowFlag.IsShowShield2 == FALSE)
-			{
-				CEngineObject* pShield	= new CEngineObject ;
-
-				pShield->Init(
-					pModList.ModFile[itemInfo->Part3DModelNum],
-					NULL,
-					eEngineObjectType_Weapon);
-				m_pEngineObject->AttachWeapon(
-					pShield,
-					LEFT_HAND);
-			}
-			//-----------------------------------------------------------------------------------------------------------------------------------------
-		}
-		else
-		{
 		CEngineObject* pShield	= new CEngineObject ;
 
 		pShield->Init(
@@ -1130,26 +985,7 @@ BYTE CAppearPlayer::AppearWeapone()
 		m_pEngineObject->AttachWeapon(
 			pShield,
 			LEFT_HAND);
-		}
 	}
-
-	//Shield2 Wear------------------------------------------------------------------------------------------------------------------------------------
-	if(const ITEM_INFO* const itemInfo = ITEMMGR->GetItemInfo(m_pPlayer->GetWearedItemIdx(eWearedItem_Shield2)))
-	{
-		if (m_stShowFlag.IsShowShield2 == TRUE)
-		{
-			CEngineObject* pShield	= new CEngineObject ;
-
-			pShield->Init(
-				pModList.ModFile[itemInfo->Part3DModelNum],
-				NULL,
-				eEngineObjectType_Weapon);
-			m_pEngineObject->AttachWeapon(
-				pShield,
-				LEFT_HAND);
-		}
-	}
-	//--------------------------------------------------------------------------------------------------------------------------------------------------------
 
 	if(m_pTotalInfo->WeaponEnchant >= 3)
 	{
@@ -1157,16 +993,13 @@ BYTE CAppearPlayer::AppearWeapone()
 
 		if(EnchantEffect* pEffect = ITEMMGR->GetItemEffect(m_pTotalInfo->WearedItemIdx[eWearedItem_Weapon]))
 		{
-			if (pEffect->ItemIdx != 0) //Alemuri fix Glowing remaining after unequip weapon
+			for( int i = 0; i < 3; i++ )
 			{
-				for( int i = 0; i < 3; i++ )
-				{
-					if( pEffect->Effect[ level ][ i ] == 0 ) continue ;
+				if( pEffect->Effect[ level ][ i ] == 0 ) continue ;
 
-					TARGETSET set ;
-					set.pTarget = m_pPlayer ;
-					m_pPlayer->mWeaponEffect[ i ] = EFFECTMGR->StartEffectProcess( pEffect->Effect[ level ][ i ], m_pPlayer, &set, 0, m_pPlayer->GetID() ) ;
-				}
+				TARGETSET set ;
+				set.pTarget = m_pPlayer ;
+				m_pPlayer->mWeaponEffect[ i ] = EFFECTMGR->StartEffectProcess( pEffect->Effect[ level ][ i ], m_pPlayer, &set, 0, m_pPlayer->GetID() ) ;
 			}
 		}
 	}
